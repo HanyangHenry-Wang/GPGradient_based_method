@@ -11,7 +11,7 @@ from torch.quasirandom import SobolEngine
 
 from model import DerivativeExactGPSEModel
 from acquisition import (MES_KnownOptimum,TruncatedExpectedImprovement,ExpectedImprovement,Fstar_pdf,
-                            Fstar_pdf_GradientEnhanced)
+                            Fstar_pdf_GradientEnhanced,Fstar_pdf_GradientEnhanced_fantasy)
 from acquisition import  My_acquisition_opt
 
 
@@ -82,20 +82,22 @@ def experiment_running(N,iter_num,function,fstar,acquisition):
                 AF = Fstar_pdf(model=model, fstar=fstar_standard) .to(device)
             elif acquisition == 'Fstar_pdf_GradientEnhanced':
                 AF = Fstar_pdf_GradientEnhanced(model=model, fstar=fstar_standard) .to(device)
+            elif acquisition == 'Fstar_pdf_GradientEnhanced_fantasy':
+                AF = Fstar_pdf_GradientEnhanced_fantasy(model=model, fstar=fstar_standard) .to(device)
 
 
-            # new_point_analytic, _ = optimize_acqf(
-            #     acq_function=AF,
-            #     bounds=standard_bounds .to(device),
-            #     q=1,
-            #     num_restarts=3*dim,
-            #     raw_samples=30*dim,
-            #     options={},
-            # )
+            new_point_analytic, _ = optimize_acqf(
+                acq_function=AF,
+                bounds=standard_bounds .to(device),
+                q=1,
+                num_restarts=3*dim,
+                raw_samples=30*dim,
+                options={},
+            )
             
-            np.random.seed(exp+i)
-            new_point_analytic = My_acquisition_opt(AF,dim)
-            new_point_analytic = torch.tensor(new_point_analytic).reshape(-1,dim)
+            # np.random.seed(exp+i)
+            # new_point_analytic = My_acquisition_opt(AF,dim)
+            # new_point_analytic = torch.tensor(new_point_analytic).reshape(-1,dim)
 
             next_x = unnormalize(new_point_analytic, bounds).reshape(-1,dim)
             new_obj = function(next_x).unsqueeze(-1) .to(device)
@@ -107,7 +109,7 @@ def experiment_running(N,iter_num,function,fstar,acquisition):
             best_value = train_obj.max().item()
             best_value_holder.append(best_value)
 
-            #print(best_value_holder[-1])
+            print(best_value_holder[-1])
 
         best_value_holder = np.array(best_value_holder)
         record.append(best_value_holder)

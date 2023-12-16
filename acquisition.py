@@ -402,30 +402,32 @@ class Fstar_pdf_GradientEnhanced(AnalyticAcquisitionFunction):
         D = X.shape[-1]
         mean_d, variance_d = self.model.posterior_derivative(X)
         
-        logpdf_total = torch.zeros(X.shape[0])
+        # logpdf_total = torch.zeros(X.shape[0])
         
-        for d in range(D):
-            mean_list = mean_d[:,d]
-            sigma_list = torch.sqrt(variance_d[:,d,d])
+        # for d in range(D):
+        #     mean_list = mean_d[:,d]
+        #     sigma_list = torch.sqrt(variance_d[:,d,d])
             
-            u = (torch.as_tensor(0.)-mean_list)/sigma_list
+        #     u = (torch.as_tensor(0.)-mean_list)/sigma_list
             
             
-            # use fat softplus to make the value smaller than -15 be -15
-            max_dis = 20.
-            u = fatplus(u+max_dis,tau=0.2)-torch.as_tensor(max_dis) 
-            u = - (fatplus(-u+max_dis,tau=0.2)-torch.as_tensor(max_dis))
+        #     # use fat softplus to make the value smaller than -15 be -15
+        #     max_dis = 20.
+        #     u = fatplus(u+max_dis,tau=0.2)-torch.as_tensor(max_dis) 
+        #     u = - (fatplus(-u+max_dis,tau=0.2)-torch.as_tensor(max_dis))
 
             
-            pdf_temp = log_phi(u)  #log_phi(u)  phi(u)
+        #     pdf_temp = log_phi(u)  #log_phi(u)  phi(u)
             
-            logpdf_total += pdf_temp
-            
-            # print(pdf_temp)
-            
-        #print('log pdf is: ', pdf_total)
-        # print('part 2: ',logpdf_total)
-        # print(logpdf_total.shape)
+        #     logpdf_total += pdf_temp
+        
+        variance_d_new = torch.diagonal(variance_d, dim1=-2, dim2=-1)
+        sigma_d_new = variance_d_new.sqrt()
+
+        u = (torch.tensor(0.)-mean_d)/sigma_d_new
+
+        logpdf_total = torch.sum(log_phi(u),dim=1)
+
         
         part2 = logpdf_total
        
@@ -474,7 +476,7 @@ class Fstar_pdf_GradientEnhanced_fantasy(AnalyticAcquisitionFunction):
             
             x_temp = X[ii]
             
-            logpdf_temp = 0.
+            #logpdf_temp = 0.
             
             x_temp = x_temp.reshape(1,1,D)
             
@@ -483,32 +485,37 @@ class Fstar_pdf_GradientEnhanced_fantasy(AnalyticAcquisitionFunction):
             model_temp.train_targets = model_temp.train_targets.reshape(model_temp.N)
             
             mean_d, variance_d = model_temp.posterior_derivative(x_temp.reshape(-1,1,D))
-        
+            
+            
+            
+            variance_d_new = torch.diagonal(variance_d, dim1=-2, dim2=-1)
+            sigma_d_new = variance_d_new.sqrt()
+
+            u = (torch.tensor(0.)-mean_d)/sigma_d_new
+
+            logpdf_temp = torch.sum(log_phi(u),dim=1).item()
+            
        
-            for d in range(D):
-                mean_list = mean_d[:,d]
-                sigma_list = torch.sqrt(variance_d[:,d,d])
+            # for d in range(D):
+            #     mean_list = mean_d[:,d]
+            #     sigma_list = torch.sqrt(variance_d[:,d,d])
                 
-                u = (torch.as_tensor(0.)-mean_list)/sigma_list
+            #     u = (torch.as_tensor(0.)-mean_list)/sigma_list
                 
                 
-                # use fat softplus to make the value smaller than -15 be -15
-                max_dis = 20.
-                u = fatplus(u+max_dis,tau=0.2)-torch.as_tensor(max_dis) 
-                u = - (fatplus(-u+max_dis,tau=0.2)-torch.as_tensor(max_dis))
+            #     # use fat softplus to make the value smaller than -15 be -15
+            #     max_dis = 20.
+            #     u = fatplus(u+max_dis,tau=0.2)-torch.as_tensor(max_dis) 
+            #     u = - (fatplus(-u+max_dis,tau=0.2)-torch.as_tensor(max_dis))
 
                 
-                pdf_temp = log_phi(u)  #log_phi(u)  phi(u)
+            #     pdf_temp = log_phi(u)  #log_phi(u)  phi(u)
                 
-                logpdf_temp += pdf_temp.item()
+            #     logpdf_temp += pdf_temp.item()
                 
             logpdf_total[ii] = logpdf_temp
             
-            # print(pdf_temp)
-            
-        #print('log pdf is: ', pdf_total)
-        # print('part 2: ',logpdf_total)
-        # print(logpdf_total.shape)
+
         
         part2 = logpdf_total
        
