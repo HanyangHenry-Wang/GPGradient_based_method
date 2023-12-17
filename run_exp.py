@@ -20,19 +20,29 @@ dtype = torch.double
 function_information = []
 
 
-
-
-temp={}
-temp['name']='Branin2D' 
-temp['function'] = Branin(negate=True)
-temp['fstar'] =  -0.397887 
-function_information.append(temp)
+# temp={}
+# temp['name']='Ackley2D' 
+# temp['function'] = Ackley(dim=2,negate=True)
+# temp['fstar'] =  0. 
+# function_information.append(temp)
 
 temp={}
-temp['name']='Beale2D' 
-temp['function'] = Beale(negate=True)
+temp['name']='Levy2D' 
+temp['function'] = Levy(dim=2,negate=True)
 temp['fstar'] =  0. 
 function_information.append(temp)
+
+# temp={}
+# temp['name']='Branin2D' 
+# temp['function'] = Branin(negate=True)
+# temp['fstar'] =  -0.397887 
+# function_information.append(temp)
+
+# temp={}
+# temp['name']='Beale2D' 
+# temp['function'] = Beale(negate=True)
+# temp['fstar'] =  0. 
+# function_information.append(temp)
 
 # temp={}
 # temp['name']='SixHumpCamel2D' 
@@ -45,6 +55,13 @@ function_information.append(temp)
 # temp['function'] = Rosenbrock(dim=3,negate=True)
 # temp['fstar'] =  0.
 # function_information.append(temp)
+
+# temp={}
+# temp['name']='Hartmann3D' 
+# temp['function'] = Hartmann(dim=3,negate=True)
+# temp['fstar'] = 3.86278
+# function_information.append(temp)
+
 
 # temp={}
 # temp['name']='StyblinskiTang4D' 
@@ -71,8 +88,8 @@ for information in function_information:
         iter_num = 150
         N = 20
         
-    # res = experiment_running(N,iter_num,fun,fstar,'ExpectedImprovement')
-    # np.savetxt('exp_res/'+information['name']+'_ExpectedImprovement', res, delimiter=',')
+    res = experiment_running(N,iter_num,fun,fstar,'ExpectedImprovement')
+    np.savetxt('exp_res/'+information['name']+'_ExpectedImprovement', res, delimiter=',')
     
     # res = experiment_running(N,iter_num,fun,fstar,'TruncatedExpectedImprovement')
     # np.savetxt('exp_res/'+information['name']+'_TruncatedExpectedImprovement', res, delimiter=',')
@@ -80,12 +97,12 @@ for information in function_information:
     # res = experiment_running(N,iter_num,fun,fstar,'MES_KnownOptimum')
     # np.savetxt('exp_res/'+information['name']+'_MES_KnownOptimum', res, delimiter=',')
     
-    # res = experiment_running(N,iter_num,fun,fstar,'Fstar_pdf')
-    # np.savetxt('exp_res/'+information['name']+'_Fstar_pdf', res, delimiter=',')
+    res = experiment_running(N,iter_num,fun,fstar,'Fstar_pdf')
+    np.savetxt('exp_res/'+information['name']+'_Fstar_pdf', res, delimiter=',')
     
     # res = experiment_running(N,iter_num,fun,fstar,'Fstar_pdf_GradientEnhanced')
     # np.savetxt('exp_res/'+information['name']+'_Fstar_pdf_GradientEnhanced', res, delimiter=',')
     
-    res = experiment_running(N,iter_num,fun,fstar,'Fstar_pdf_GradientEnhanced_fantasy')
-    np.savetxt('exp_res/'+information['name']+'_Fstar_pdf_GradientEnhanced_fantasy', res, delimiter=',')
+    # res = experiment_running(N,iter_num,fun,fstar,'Fstar_pdf_GradientEnhanced_fantasy')
+    # np.savetxt('exp_res/'+information['name']+'_Fstar_pdf_GradientEnhanced_fantasy', res, delimiter=',')
     

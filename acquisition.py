@@ -262,7 +262,13 @@ class ExpectedImprovement(AnalyticAcquisitionFunction):
         """
         mean, sigma = self._mean_and_sigma(X)
         u = _scaled_improvement(mean, sigma, self.best_f, self.maximize)
-        return sigma * _ei_helper(u)
+        
+        # use fat softplus to make the value smaller than -15 be -15
+        max_dis = 20.
+        u = fatplus(u+max_dis,tau=0.2)-torch.as_tensor(max_dis) 
+        u = - (fatplus(-u+max_dis,tau=0.2)-torch.as_tensor(max_dis))
+        
+        return (sigma * _ei_helper(u)).log()
 
   
 
@@ -359,7 +365,7 @@ class Fstar_pdf(AnalyticAcquisitionFunction):
         gamma = fatplus(gamma+max_dis,tau=0.2)-torch.as_tensor(max_dis) 
         gamma = - (fatplus(-gamma+max_dis,tau=0.2)-torch.as_tensor(max_dis))
         
-        res = phi(gamma)  
+        res = log_phi(gamma)  
        
         return res
     
