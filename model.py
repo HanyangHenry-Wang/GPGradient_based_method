@@ -35,7 +35,7 @@ class ExactGPSEModel(gpytorch.models.ExactGP, botorch.models.gpytorch.GPyTorchMo
         lengthscale_hyperprior=None,
         outputscale_constraint=None,
         outputscale_hyperprior=None,
-        noise_constraint=  Interval(10**(-6),10**(-5)), #None,
+        noise_constraint=  Interval(10**(-6),2*10**(-6)), #Interval(10**(-6),2*10**(-6)), #None, 
         noise_hyperprior=None,
         ard_num_dims=None,
         prior_mean=0,
@@ -124,7 +124,7 @@ class DerivativeExactGPSEModel(ExactGPSEModel):
         lengthscale_hyperprior=None,
         outputscale_constraint=None,
         outputscale_hyperprior=None,
-        noise_constraint= Interval(10**(-6),10**(-5)), #None,
+        noise_constraint= Interval(10**(-6),2*10**(-6)), #Interval(10**(-6),2*10**(-6)), #None, 
         noise_hyperprior=None,
         ard_num_dims=None,
         prior_mean=0.0,
@@ -160,57 +160,18 @@ class DerivativeExactGPSEModel(ExactGPSEModel):
             unnormalize = lambda params: params
         self.unnormalize = unnormalize
 
-    # def append_train_data(self, train_x, train_y):
-    #     """Adaptively append training data.
 
-    #     Optionally translates train_x data for the state normalization of the
-    #         MLP.
+    # def get_L_lower(self):
+    #     """Get Cholesky decomposition L, where L is a lower triangular matrix.
 
-    #     Args:
-    #         train_x: (1 x D) New training features.
-    #         train_y: (1 x 1) New training target.
+    #     Returns:
+    #         Cholesky decomposition L.
     #     """
-    #     self.train_xs = torch.cat([self.unnormalize(train_x), self.train_xs])
-    #     self.train_ys = torch.cat([train_y, self.train_ys])
-
-    #     if (self.N_max is not None) or (self.N_max != -1):
-    #         # args = torch.argsort(
-    #         #    self.covar_module(self.train_xs, self.unnormalize(train_x))
-    #         #    .evaluate()
-    #         #    .view(-1),
-    #         #    descending=False,
-    #         # )
-    #         # self.train_xs = self.train_xs[args][: self.N_max]
-    #         # self.train_ys = self.train_ys[args][: self.N_max]
-    #         self.train_xs = self.train_xs[: self.N_max]
-    #         self.train_ys = self.train_ys[: self.N_max]
-
-    #     if self.train_ys.size(-1) == 1:
-    #         targets = self.train_ys
-    #     else:
-    #         targets = (self.train_ys - self.train_ys.mean()) / (
-    #             self.train_ys.std(unbiased=False) + 1e-10
-    #         )
-
-    #     self.set_train_data(
-    #         inputs=self.normalize(self.train_xs),
-    #         targets=targets,
-    #         strict=False,
+    #     return (
+    #         self.prediction_strategy.lik_train_train_covar.root_decomposition()
+    #         .root.evaluate()
+    #         .detach()
     #     )
-
-    #     self.N = self.train_xs.shape[0]
-
-    def get_L_lower(self):
-        """Get Cholesky decomposition L, where L is a lower triangular matrix.
-
-        Returns:
-            Cholesky decomposition L.
-        """
-        return (
-            self.prediction_strategy.lik_train_train_covar.root_decomposition()
-            .root.evaluate()
-            .detach()
-        )
 
     def get_KXX_inv(self):
         """Get the inverse matrix of K(X,X).
@@ -221,19 +182,19 @@ class DerivativeExactGPSEModel(ExactGPSEModel):
         L_inv_upper = self.prediction_strategy.covar_cache.detach()
         return L_inv_upper @ L_inv_upper.transpose(0, 1)
 
-    def get_KXX_inv_old(self):
-        """Get the inverse matrix of K(X,X).
+    # def get_KXX_inv_old(self):
+    #     """Get the inverse matrix of K(X,X).
 
-        Not as efficient as get_KXX_inv.
+    #     Not as efficient as get_KXX_inv.
 
-        Returns:
-            The inverse of K(X,X).
-        """
-        X = self.train_inputs[0]
-        sigma_n = self.likelihood.noise_covar.noise.detach()
-        return torch.inverse(
-            self.covar_module(X).evaluate() + torch.eye(X.shape[0]) * sigma_n
-        )
+    #     Returns:
+    #         The inverse of K(X,X).
+    #     """
+    #     X = self.train_inputs[0]
+    #     sigma_n = self.likelihood.noise_covar.noise.detach()
+    #     return torch.inverse(
+    #         self.covar_module(X).evaluate() + torch.eye(X.shape[0]) * sigma_n
+    #     )
 
     def _get_KxX_dx(self, x):
         """Computes the analytic derivative of the kernel K(x,X) w.r.t. x.
@@ -292,3 +253,159 @@ class DerivativeExactGPSEModel(ExactGPSEModel):
         variance_d = variance_d.clamp_min(1e-9)
 
         return mean_d, variance_d
+    
+    
+
+
+class DerivativeExactGPSEModel_2(ExactGPSEModel): #this one is friendly to get_fansty 
+    
+    """Derivative of the ExactGPSEModel w.r.t. the test points x.
+
+    Since differentiation is a linear operator this is again a Gaussian process.
+
+    Attributes:
+        D: Dimension of train_x-/input-data.
+        normalize: Optional normalization function for policy parameterization.
+        unnormalize: Optional unnormalization function for policy
+            parameterization.
+        N_max: Maximum number of training samples (train_x, N) for model inference.
+        lengthscale_constraint: Constraint for lengthscale of SE-kernel, gpytorch.constraints.
+        lengthscale_hyperprior: Hyperprior for lengthscale of SE-kernel, gpytorch.priors.
+        outputscale_constraint: Constraint for outputscale of SE-kernel, gpytorch.constraints.
+        outputscale_hyperprior: Hyperprior for outputscale of SE-kernel, gpytorch.priors.
+        noise_constraint: Constraint for noise, gpytorch.constraints.
+        noise_hyperprior: Hyperprior for noise, gpytorch.priors.
+        ard_num_dims: Set this if you want a separate lengthscale for each input dimension.
+            Should be D if train_x is a N x D matrix.
+        prior_mean: Value for constant mean.
+    """
+
+    def __init__(
+        self,
+        D: int,
+        train_x: torch.Tensor,
+        train_y: torch.Tensor,
+        normalize=None,
+        unnormalize=None,
+        N_max=None,
+        lengthscale_constraint=None,
+        lengthscale_hyperprior=None,
+        outputscale_constraint=None,
+        outputscale_hyperprior=None,
+        noise_constraint= Interval(10**(-6),2*10**(-6)), #Interval(10**(-6),2*10**(-6)), #None, 
+        noise_hyperprior=None,
+        ard_num_dims=None,
+        prior_mean=0.0,
+    ):
+        """Inits GP model with data and a Gaussian likelihood."""
+        # train_x_init, train_y_init = (
+        #     torch.empty(0, D),
+        #     torch.empty(0),
+        # )
+        super(DerivativeExactGPSEModel_2, self).__init__(
+            train_x,
+            train_y,
+            lengthscale_constraint,
+            lengthscale_hyperprior,
+            outputscale_constraint,
+            outputscale_hyperprior,
+            noise_constraint,
+            noise_hyperprior,
+            ard_num_dims,
+            prior_mean,
+        )
+
+        self.N_max = N_max
+        self.D = D
+        self.N = self.train_inputs[0].shape[0] #    self.N = train_x.shape[0]
+        
+        # self.train_xs = train_x_init
+        # self.train_ys = train_y_init
+        if normalize is None:
+            normalize = lambda params: params
+        self.normalize = normalize
+        if unnormalize is None:
+            unnormalize = lambda params: params
+        self.unnormalize = unnormalize
+
+
+
+
+    def get_KXX_inv(self,index=0):
+        """Get the inverse matrix of K(X,X).
+
+        Returns:
+            The inverse of K(X,X).
+        """
+        L_inv_upper = self.prediction_strategy.covar_cache.detach()
+        L_inv_upper = L_inv_upper.reshape(-1,self.N,self.N)
+        L_inv_upper = L_inv_upper[index]
+        
+        return L_inv_upper @ L_inv_upper.transpose(0, 1)
+
+
+
+    def _get_KxX_dx(self, x,index=0):
+        """Computes the analytic derivative of the kernel K(x,X) w.r.t. x.
+
+        Args:
+            x: (n x D) Test points.
+
+        Returns:
+            (n x D) The derivative of K(x,X) w.r.t. x.
+        """
+        X = self.train_inputs[0]
+        X = X.reshape(-1,self.N,self.D)
+        X = X[index]
+        
+        n = x.shape[0]
+        K_xX = self.covar_module(x, X).evaluate()
+        lengthscale = self.covar_module.base_kernel.lengthscale.detach()
+        return (
+            -torch.eye(self.D, device=x.device)
+            / lengthscale ** 2
+            @ (
+                (x.view(n, 1, self.D) - X.view(1, self.N, self.D))
+                * K_xX.view(n, self.N, 1)
+            ).transpose(1, 2)
+        )
+
+    def _get_Kxx_dx2(self):
+        """Computes the analytic second derivative of the kernel K(x,x) w.r.t. x.
+
+        Args:
+            x: (n x D) Test points.
+
+        Returns:
+            (n x D x D) The second derivative of K(x,x) w.r.t. x.
+        """
+        lengthscale = self.covar_module.base_kernel.lengthscale.detach()
+        sigma_f = self.covar_module.outputscale.detach()
+        return (
+            torch.eye(self.D, device=lengthscale.device) / lengthscale ** 2
+        ) * sigma_f
+
+    def posterior_derivative(self, x,index=0):
+        """Computes the posterior of the derivative of the GP w.r.t. the given test
+        points x.
+
+        Args:
+            x: (n x D) Test points.
+
+        Returns:
+            A GPyTorchPosterior.
+        """
+        
+        train_targets = self.train_targets.reshape(-1,self.N)
+        
+        if self.prediction_strategy is None:
+            self.posterior(x)  # Call this to update prediction strategy of GPyTorch.
+        K_xX_dx = self._get_KxX_dx(x,index)
+        mean_d = K_xX_dx @ self.get_KXX_inv(index) @ train_targets[index]
+        variance_d = (
+            self._get_Kxx_dx2() - K_xX_dx @ self.get_KXX_inv(index) @ K_xX_dx.transpose(1, 2)
+        )
+        variance_d = variance_d #.clamp_min(1e-9)
+
+        return mean_d, variance_d
+

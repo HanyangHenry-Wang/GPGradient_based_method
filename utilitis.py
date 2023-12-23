@@ -9,9 +9,12 @@ from botorch.utils.transforms import unnormalize,normalize
 from torch.quasirandom import SobolEngine
 
 
-from model import DerivativeExactGPSEModel
+from model import DerivativeExactGPSEModel,DerivativeExactGPSEModel_2
 from acquisition import (MES_KnownOptimum,TruncatedExpectedImprovement,ExpectedImprovement,Fstar_pdf,
-                            Fstar_pdf_GradientEnhanced,Fstar_pdf_GradientEnhanced_fantasy)
+                            Fstar_pdf_GradientEnhanced,Fstar_pdf_GradientEnhanced_fantasy,
+                            TruncatedExpectedImprovement_GradientEnhanced_fantasy,
+                            TruncatedExpectedImprovement_GradientEnhanced_fantasy_2,
+                           )
 from acquisition import  My_acquisition_opt
 
 
@@ -40,6 +43,7 @@ def experiment_running(N,iter_num,function,fstar,acquisition):
     record = []
 
     for exp in range(N):
+        
 
         print(exp)
         torch.manual_seed(exp)
@@ -60,7 +64,10 @@ def experiment_running(N,iter_num,function,fstar,acquisition):
             fstar_standard = (fstar - train_obj.mean()) / train_obj.std()
             
             torch.manual_seed(exp+iter_num)
-            model = DerivativeExactGPSEModel(dim,train_x_standard, train_obj_standard).to(device)    
+            if acquisition == 'TruncatedExpectedImprovement_GradientEnhanced_fantasy_2':
+                model = DerivativeExactGPSEModel_2(dim,train_x_standard, train_obj_standard).to(device) 
+            else: 
+                model = DerivativeExactGPSEModel(dim,train_x_standard, train_obj_standard).to(device)    
 
             mll = ExactMarginalLogLikelihood(model.likelihood, model) .to(device)
 
@@ -86,20 +93,45 @@ def experiment_running(N,iter_num,function,fstar,acquisition):
                 AF = Fstar_pdf_GradientEnhanced(model=model, fstar=fstar_standard) .to(device)
             elif acquisition == 'Fstar_pdf_GradientEnhanced_fantasy':
                 AF = Fstar_pdf_GradientEnhanced_fantasy(model=model, fstar=fstar_standard) .to(device)
+            elif acquisition == 'TruncatedExpectedImprovement_GradientEnhanced_fantasy_2':
+                AF = TruncatedExpectedImprovement_GradientEnhanced_fantasy_2(model=model, best_f=train_obj_standard.max().item(),fstar=fstar_standard) .to(device)
+            elif acquisition == 'TruncatedExpectedImprovement_GradientEnhanced_fantasy':
+                AF = TruncatedExpectedImprovement_GradientEnhanced_fantasy(model=model, best_f=train_obj_standard.max().item(),fstar=fstar_standard) .to(device)
 
 
-            # new_point_analytic, _ = optimize_acqf(
-            #     acq_function=AF,
-            #     bounds=standard_bounds .to(device),
-            #     q=1,
-            #     num_restarts=3*dim,
-            #     raw_samples=30*dim,
-            #     options={},
-            # )
+
+            # try:
+            #     new_point_analytic, _ = optimize_acqf(
+            #         acq_function=AF,
+            #         bounds=standard_bounds .to(device),
+            #         q=1,
+            #         num_restarts=3*dim,
+            #         raw_samples=30*dim,
+            #         options={},
+            #     )
+            # except:
+            #     print('problem occur')
+            #     if acquisition == 'TruncatedExpectedImprovement_GradientEnhanced_fantasy':
+            #         AF_temp = TruncatedExpectedImprovement(model=model, best_f=train_obj_standard.max().item(),fstar=fstar_standard) .to(device)
+                
+            #     np.random.seed(exp+i)
+            #     new_point_analytic = My_acquisition_opt(AF_temp,dim)
+            #     new_point_analytic = torch.tensor(new_point_analytic).reshape(-1,dim).to(device)
             
-            np.random.seed(exp+i)
-            new_point_analytic = My_acquisition_opt(AF,dim)
-            new_point_analytic = torch.tensor(new_point_analytic).reshape(-1,dim)
+            
+            
+            try:
+                np.random.seed(exp+i)
+                new_point_analytic = My_acquisition_opt(AF,dim)
+                new_point_analytic = torch.tensor(new_point_analytic).reshape(-1,dim).to(device)
+            except:
+                print('problem occur')
+                if acquisition == 'TruncatedExpectedImprovement_GradientEnhanced_fantasy' or acquisition == 'TruncatedExpectedImprovement_GradientEnhanced_fantasy_2':
+                    AF_temp = TruncatedExpectedImprovement(model=model, best_f=train_obj_standard.max().item(),fstar=fstar_standard) .to(device)
+                
+                np.random.seed(exp+i)
+                new_point_analytic = My_acquisition_opt(AF_temp,dim)
+                new_point_analytic = torch.tensor(new_point_analytic).reshape(-1,dim).to(device)
             
             print(new_point_analytic)
 

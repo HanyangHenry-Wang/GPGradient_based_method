@@ -296,8 +296,16 @@ class TruncatedExpectedImprovement(AnalyticAcquisitionFunction):
         mean, sigma = self._mean_and_sigma(X)
         u1 = _scaled_improvement(mean, sigma, self.best_f, self.maximize)
         u2 = _scaled_improvement(mean, sigma, self.fstar, self.maximize)
+        
+        max_dis = 20.
+        u1 = fatplus(u1+max_dis,tau=0.2)-torch.as_tensor(max_dis) 
+        u1 = - (fatplus(-u1+max_dis,tau=0.2)-torch.as_tensor(max_dis))
+        
+        max_dis = 20.
+        u2 = fatplus(u2+max_dis,tau=0.2)-torch.as_tensor(max_dis) 
+        u2 = - (fatplus(-u2+max_dis,tau=0.2)-torch.as_tensor(max_dis))
 
-        return (sigma * _ei_helper(u1)) -(sigma * _ei_helper(u2))
+        return ((sigma * _ei_helper(u1)) -(sigma * _ei_helper(u2))).log()
     
 
  
@@ -405,7 +413,7 @@ class Fstar_pdf_GradientEnhanced(AnalyticAcquisitionFunction):
         part1 = log_phi(gamma)
         
         # part 2 calculation
-        D = X.shape[-1]
+        #D = X.shape[-1]
         mean_d, variance_d = self.model.posterior_derivative(X)
         
         # logpdf_total = torch.zeros(X.shape[0])
@@ -431,6 +439,10 @@ class Fstar_pdf_GradientEnhanced(AnalyticAcquisitionFunction):
         sigma_d_new = variance_d_new.sqrt()
 
         u = (torch.tensor(0.)-mean_d)/sigma_d_new
+        
+        max_dis = 20.
+        u = fatplus(u+max_dis,tau=0.2)-torch.as_tensor(max_dis) 
+        u = - (fatplus(-u+max_dis,tau=0.2)-torch.as_tensor(max_dis))
 
         logpdf_total = torch.sum(log_phi(u),dim=1)
 
@@ -528,8 +540,157 @@ class Fstar_pdf_GradientEnhanced_fantasy(AnalyticAcquisitionFunction):
         return part1  + part2
     
     
+class TruncatedExpectedImprovement_GradientEnhanced_fantasy(AnalyticAcquisitionFunction):
+   
+
+    def __init__(
+        self,
+        model: Model,
+        best_f: Union[float, Tensor],
+        fstar: Union[float, Tensor],
+        posterior_transform: Optional[PosteriorTransform] = None,
+        maximize: bool = True,
+        **kwargs,
+    ):
+        
+        super().__init__(model=model, posterior_transform=posterior_transform, **kwargs)
+        self.register_buffer("best_f", torch.as_tensor(best_f))
+        self.register_buffer("fstar", torch.as_tensor(fstar))
+        self.maximize = maximize
+
+    @t_batch_mode_transform(expected_q=1)
+    def forward(self, X: Tensor) -> Tensor:
+
+        
+        mean, sigma = self._mean_and_sigma(X)
+        u1 = _scaled_improvement(mean, sigma, self.best_f, self.maximize)
+        u2 = _scaled_improvement(mean, sigma, self.fstar, self.maximize)
+        
+        max_dis = 20.
+        u1 = fatplus(u1+max_dis,tau=0.2)-torch.as_tensor(max_dis) 
+        u1 = - (fatplus(-u1+max_dis,tau=0.2)-torch.as_tensor(max_dis))
+        
+        max_dis = 20.
+        u2 = fatplus(u2+max_dis,tau=0.2)-torch.as_tensor(max_dis) 
+        u2 = - (fatplus(-u2+max_dis,tau=0.2)-torch.as_tensor(max_dis))
+        
+        part1 = ((sigma * _ei_helper(u1)) -(sigma * _ei_helper(u2))).log()
+        
+        #part 2 calculation
+
+        logpdf_total = torch.zeros(X.shape[0])
+        D = X.shape[-1]
+        
+        
+        for ii in range(X.shape[0]):
+            
+            x_temp = X[ii]
+            
+            #logpdf_temp = 0.
+            
+            x_temp = x_temp.reshape(1,1,D)
+            
+            model_temp = self.model.get_fantasy_model(x_temp.reshape(-1,D), torch.tensor([self.fstar.item()]).reshape(-1,1))
+            model_temp.N = self.model.N+1
+            model_temp.train_targets = model_temp.train_targets.reshape(model_temp.N)
+            
+            mean_d, variance_d = model_temp.posterior_derivative(x_temp.reshape(-1,1,D))
+            
+            
+            
+            variance_d_new = torch.diagonal(variance_d, dim1=-2, dim2=-1)
+            sigma_d_new = variance_d_new.sqrt()
+
+            u = (torch.tensor(0.)-mean_d)/sigma_d_new
+
+            logpdf_temp = torch.sum(log_phi(u),dim=1).item()
+            
+
+                
+            logpdf_total[ii] = logpdf_temp
+            
+
+        
+        part2 = logpdf_total
+
+
+        return part1+part2
     
     
+class TruncatedExpectedImprovement_GradientEnhanced_fantasy_2(AnalyticAcquisitionFunction):
+   
+
+    def __init__(
+        self,
+        model: Model,
+        best_f: Union[float, Tensor],
+        fstar: Union[float, Tensor],
+        posterior_transform: Optional[PosteriorTransform] = None,
+        maximize: bool = True,
+        **kwargs,
+    ):
+        
+        super().__init__(model=model, posterior_transform=posterior_transform, **kwargs)
+        self.register_buffer("best_f", torch.as_tensor(best_f))
+        self.register_buffer("fstar", torch.as_tensor(fstar))
+        self.maximize = maximize
+
+    @t_batch_mode_transform(expected_q=1)
+    def forward(self, X: Tensor) -> Tensor:
+       
+        mean, sigma = self._mean_and_sigma(X)
+        u1 = _scaled_improvement(mean, sigma, self.best_f, self.maximize)
+        u2 = _scaled_improvement(mean, sigma, self.fstar, self.maximize)
+        
+        max_dis = 20.
+        u1 = fatplus(u1+max_dis,tau=0.2)-torch.as_tensor(max_dis) 
+        u1 = - (fatplus(-u1+max_dis,tau=0.2)-torch.as_tensor(max_dis))
+        
+        max_dis = 20.
+        u2 = fatplus(u2+max_dis,tau=0.2)-torch.as_tensor(max_dis) 
+        u2 = - (fatplus(-u2+max_dis,tau=0.2)-torch.as_tensor(max_dis))
+        
+        part1 = ((sigma * _ei_helper(u1)) -(sigma * _ei_helper(u2))).log()
+        
+         # part 2 calculation
+        logpdf_total = torch.zeros(X.shape[0])
+        D = X.shape[-1]
+        Num = X.shape[0]
+        
+        model_fansty =  self.model.get_fantasy_model(X.reshape(Num,-1,D), torch.tensor([self.fstar.item()]*Num).reshape(Num,1))
+        model_fansty.N = model_fansty.N+1
+        
+        for ii in range(Num):
+            
+            x_temp = X[ii]
+            
+            mean_d, variance_d = model_fansty.posterior_derivative(x_temp.reshape(-1,1,D),index=ii)
+            
+            
+            variance_d_new = torch.diagonal(variance_d, dim1=-2, dim2=-1)
+            sigma_d_new = variance_d_new.sqrt()
+
+            u = (torch.tensor(0.)-mean_d)/sigma_d_new
+            
+            max_dis = 20.
+            u = fatplus(u+max_dis,tau=0.2)-torch.as_tensor(max_dis) 
+            u = - (fatplus(-u+max_dis,tau=0.2)-torch.as_tensor(max_dis))
+
+            logpdf_temp = torch.sum(log_phi(u),dim=1).item()
+                
+            logpdf_total[ii] = logpdf_temp
+            
+
+        
+        part2 = logpdf_total
+
+        return part1+part2
+    
+    
+
+
+#########################################################
+
 
 import numpy as np
 from scipy.optimize import minimize
